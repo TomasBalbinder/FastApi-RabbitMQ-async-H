@@ -3,12 +3,15 @@ import databases
 import sqlalchemy
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import pika
+import json
 
 
 
 
 
-# SQLAlchemy specific code, as with any other app
+
+
 DATABASE_URL = "sqlite:///./test.db"
 
 database = databases.Database(DATABASE_URL)
@@ -62,11 +65,28 @@ async def read_cosmonauts():
 
 @app.post("/cosmonauts/create", response_model=Cosmonaut)
 async def create_cosmonaut(cosmonaut: CosmonautIn):
+    connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+    channel = connection.channel()
+    channel.queue_declare(queue="kosmonaut_queue", durable=True)
     query = cosmonaut_table.insert().values(
         name=cosmonaut.name,
         age=cosmonaut.age
     )
     last_record_id = await database.execute(query)
+    message = {
+        "name": cosmonaut.name,
+        "age": cosmonaut.age
+    }
+    
+    # Odeslání zprávy do RabbitMQ
+    channel.basic_publish(
+        exchange="",
+        routing_key="kosmonaut_queue",
+        body=json.dumps(message)
+    )
+    
+    # Uzavření spojení s RabbitMQ
+    connection.close()
     return {"id": str(last_record_id), **cosmonaut.dict()}
 
 
@@ -91,3 +111,5 @@ async def update_cosmonaut(cosmonaut_id: int, updated_cosmonaut: CosmonautIn):
         return {"id": cosmonaut_id, **updated_cosmonaut.dict()}
     else:
         raise HTTPException(status_code=404, detail="Cosmonaut not found")
+    
+    
