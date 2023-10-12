@@ -6,12 +6,6 @@ from pydantic import BaseModel
 import pika
 import json
 
-
-
-
-
-
-
 DATABASE_URL = "sqlite:///./test.db"
 
 database = databases.Database(DATABASE_URL)
@@ -78,15 +72,16 @@ async def create_cosmonaut(cosmonaut: CosmonautIn):
         "age": cosmonaut.age
     }
     
-    # Odeslání zprávy do RabbitMQ
+    # RabbitMQ sent message to queue 
     channel.basic_publish(
         exchange="",
         routing_key="kosmonaut_queue",
         body=json.dumps(message)
     )
     
-    # Uzavření spojení s RabbitMQ
+    # RabbitMQ close connection
     connection.close()
+    
     return {"id": str(last_record_id), **cosmonaut.dict()}
 
 
